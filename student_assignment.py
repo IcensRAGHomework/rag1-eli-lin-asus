@@ -13,6 +13,8 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain_core.output_parsers import SimpleJsonOutputParser
+
 
 from langchain import hub
 
@@ -55,15 +57,24 @@ def get_date_chain():
     output_parser = StructuredOutputParser(response_schemas=response_schemas)
     format_instructions = output_parser.get_format_instructions()
     prompt = ChatPromptTemplate.from_messages([
-        ("system","使用台灣語言並回答問題,{format_instructions}"),
+        ("system","你是一個使用台灣語言並回答問題且會遵照範例JSON格式輸出的紀念日專家,{format_instructions}"),
         ("human","{question}")])
     prompt = prompt.partial(format_instructions=format_instructions)
     return prompt | llm | output_parser
 
 
 def generate_hw01(question):
+    response_schemas = get_result_schemas()
+    output_parser = StructuredOutputParser(response_schemas=response_schemas)
+    format_instructions = output_parser.get_format_instructions()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system","你是一個使用台灣語言並回答問題且會遵照範例JSON格式輸出的紀念日專家,{format_instructions}"),
+        ("human","{question}")])
+    prompt = prompt.partial(format_instructions=format_instructions)
+    # response = llm.invoke(prompt.format(question=question)).content
     response = get_date_chain().invoke({'question': question})
-    return response
+    
+    return json.dumps(response, ensure_ascii=False)
     
 def generate_hw02(question):
     examples = [
