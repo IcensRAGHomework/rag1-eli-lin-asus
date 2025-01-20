@@ -52,64 +52,32 @@ def get_result_schemas():
         )
     ]
 
-def get_date_chain():
+def get_date_prompt():
     response_schemas = get_result_schemas()
     output_parser = StructuredOutputParser(response_schemas=response_schemas)
     format_instructions = output_parser.get_format_instructions()
     prompt = ChatPromptTemplate.from_messages([
-        ("system","你是一個使用台灣語言並回答問題且會遵照範例JSON格式輸出的紀念日專家,{format_instructions}"),
-        ("human","{question}")])
-    prompt = prompt.partial(format_instructions=format_instructions)
-    return prompt | llm | output_parser
+        ("system","使用台灣語言並回答問題,{format_instructions}"),
+        ("human","{question}"),
+        MessagesPlaceholder("agent_scratchpad", optional=True)
+        ])
+    return prompt.partial(format_instructions=format_instructions)
 
 
 def generate_hw01(question):
-    response_schemas = get_result_schemas()
-    output_parser = StructuredOutputParser(response_schemas=response_schemas)
-    format_instructions = output_parser.get_format_instructions()
-    prompt = ChatPromptTemplate.from_messages([
-        ("system","你是一個使用台灣語言並回答問題且會遵照範例JSON格式輸出的紀念日專家,{format_instructions}"),
-        ("human","{question}")])
-    prompt = prompt.partial(format_instructions=format_instructions)
-    # response = llm.invoke(prompt.format(question=question)).content
-    response = get_date_chain().invoke({'question': question})
-    
+    output_parser = StructuredOutputParser(response_schemas=get_result_schemas())
+    prompt = get_date_prompt()
+    date_chain = prompt | llm | output_parser
+    response = date_chain.invoke({'question': question})
     return json.dumps(response, ensure_ascii=False)
     
 def generate_hw02(question):
-    examples = [
-        {"input": "2024年台灣10月紀念日有哪些?", "output": '{\
-            "Result": [\
-                {\
-                    "date": "2024-10-10",\
-                    "name": "國慶日"\
-                }\
-            ]\
-        }'}
-    ]
-    example_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("human", "{input}"),
-            ("ai", "{output}"),
-        ]
-    )
-    few_shot_prompt = FewShotChatMessagePromptTemplate(
-        example_prompt=example_prompt,
-        examples=examples
-    )
-    final_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", "你是一個使用台灣語言且會遵照範例JSON格式輸出指定屬性且正確排版的答案的紀念日專家"),
-            few_shot_prompt,
-            ("human", "{input}"),
-            MessagesPlaceholder("agent_scratchpad")
-        ]
-    )
+    prompt = get_date_prompt()
     tools = [tool]
-    agent = create_openai_functions_agent(llm, tools, final_prompt)
+    agent = create_openai_functions_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools)
-    response = agent_executor.invoke({"input": question}).get('output')
-    return response
+    response = agent_executor.invoke({"question": question}).get('output')
+    return json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
 
 def generate_hw03(question2, question3):
     pass
@@ -153,4 +121,4 @@ tool = StructuredTool.from_function(
     args_schema=GetValue
 )
 
-print(generate_hw01("2024年台灣10月紀念日有哪些?"))
+print(generate_hw02("2024年台灣10月紀念日有哪些?"))
