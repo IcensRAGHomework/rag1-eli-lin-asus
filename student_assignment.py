@@ -27,35 +27,42 @@ llm = AzureChatOpenAI(
     temperature=gpt_config['temperature']
 )
 
-def generate_hw01(question):
-    examples = [
-        {"input": "2024年台灣10月紀念日有哪些?", "output": '{\
-            "Result": [\
-                {\
-                    "date": "2024-10-10",\
-                    "name": "國慶日"\
-                }\
-            ]\
-        }'}
+def get_date_schemas():
+    return [
+        ResponseSchema(
+            name="date",
+            description="該紀念日的日期",
+            type="YYYY-MM-DD"),
+        ResponseSchema(
+            name="name",
+            description="該紀念日的名稱")
     ]
-    example_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("human", "{input}"),
-            ("ai", "{output}"),
-        ]
-    )
-    few_shot_prompt = FewShotChatMessagePromptTemplate(
-        example_prompt=example_prompt,
-        examples=examples
-    )
-    final_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", "你是一個使用台灣語言且會遵照範例JSON格式輸出答案的紀念日專家"),
-            few_shot_prompt,
-            ("human", "{input}"),
-        ]
-    )
-    response = llm.invoke(final_prompt.format(input=question)).content
+
+def get_result_schemas():
+    response_schemas = get_date_schemas()
+    output_parser = StructuredOutputParser(response_schemas=response_schemas)
+    format_instructions = output_parser.get_format_instructions()
+    return [
+        ResponseSchema(
+            name="Result",
+            description="一個結果的清單",
+            type=format_instructions
+        )
+    ]
+
+def get_date_chain():
+    response_schemas = get_result_schemas()
+    output_parser = StructuredOutputParser(response_schemas=response_schemas)
+    format_instructions = output_parser.get_format_instructions()
+    prompt = ChatPromptTemplate.from_messages([
+        ("system","使用台灣語言並回答問題,{format_instructions}"),
+        ("human","{question}")])
+    prompt = prompt.partial(format_instructions=format_instructions)
+    return prompt | llm | output_parser
+
+
+def generate_hw01(question):
+    response = get_date_chain().invoke({'question': question})
     return response
     
 def generate_hw02(question):
@@ -134,3 +141,5 @@ tool = StructuredTool.from_function(
     func=get_holidays_from_clendarific,
     args_schema=GetValue
 )
+
+print(generate_hw01("2024年台灣10月紀念日有哪些?"))
