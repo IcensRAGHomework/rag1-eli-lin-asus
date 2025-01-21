@@ -17,7 +17,6 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from mimetypes import guess_type
 from langchain_core.utils.json import parse_json_markdown
-from langchain import hub
 
 gpt_chat_version = 'gpt-4o'
 gpt_config = get_model_configuration(gpt_chat_version)
@@ -31,7 +30,6 @@ llm = AzureChatOpenAI(
 )
 
 ## For format answer
-
 date_schemas = [
     ResponseSchema(
         name="date",
@@ -178,7 +176,7 @@ def generate_hw02(question):
     agent = create_openai_functions_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools)
     response = agent_executor.invoke({"question": question, "format_instructions": format_instructions}).get('output')
-    return parse_json_markdown(response)
+    return json.dumps(parse_json_markdown(response), ensure_ascii=False)
 
 def generate_hw03(question2, question3):
     prompt = get_prompt()
@@ -199,7 +197,7 @@ def generate_hw03(question2, question3):
     ## second question
     format_instructions = get_output_parser(get_add_result_schemas()).get_format_instructions()
     response = agent_with_chat_history.invoke({"question": question3, "format_instructions": format_instructions}).get('output')
-    return parse_json_markdown(response)
+    return json.dumps(parse_json_markdown(response), ensure_ascii=False)
     
 def generate_hw04(question):
     score_response_schemas = get_score_result_schemas()
