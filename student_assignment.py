@@ -52,14 +52,13 @@ add_schemas = [
         description="描述為什麼需要或不需要新增節日，具體說明是否該節日已經存在於清單中，以及當前清單的內容。")
 ]
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system","使用台灣語言並回答問題,{format_instructions}"),
+def get_prompt():
+    return ChatPromptTemplate.from_messages([
+    ("system","使用台灣語言並回答問題, 答案必須嚴格遵守格式,{format_instructions}"),
     ("human","{question}"),
     MessagesPlaceholder("agent_scratchpad", optional=True)
     ]
 )
-def get_prompt():
-    return prompt
 
 def get_date_result_schemas():
     output_parser = StructuredOutputParser(response_schemas=date_schemas)
@@ -147,9 +146,7 @@ def generate_hw03(question2, question3):
     ## second question
     format_instructions = get_format_instructions(get_add_result_schemas())
     response = agent_with_chat_history.invoke({"question": question3, "format_instructions": format_instructions}).get('output')
-    answer = json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
-    print(answer)
-    return answer
+    return json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
     
 def generate_hw04(question):
     pass
@@ -171,5 +168,3 @@ def demo(question):
     response = llm.invoke([message])
     
     return response
-
-# print(generate_hw02("2024年台灣10月紀念日有哪些?"))
