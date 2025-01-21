@@ -147,7 +147,9 @@ def generate_hw03(question2, question3):
     ## second question
     format_instructions = get_format_instructions(get_add_result_schemas())
     response = agent_with_chat_history.invoke({"question": question3, "format_instructions": format_instructions}).get('output')
-    return json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
+    answer = json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
+    print(answer)
+    return answer
     
 def generate_hw04(question):
     pass
