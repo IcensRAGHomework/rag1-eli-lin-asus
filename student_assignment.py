@@ -1,6 +1,6 @@
 import json
-import traceback
 import requests
+import base64
 
 from model_configurations import get_model_configuration
 
@@ -16,6 +16,7 @@ from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain_core.output_parsers import SimpleJsonOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from mimetypes import guess_type
 
 from langchain import hub
 
@@ -52,6 +53,12 @@ add_schemas = [
         description="描述為什麼需要或不需要新增節日，具體說明是否該節日已經存在於清單中，以及當前清單的內容。")
 ]
 
+score_schemas = [
+        ResponseSchema(
+        name="score",
+        description="這是一個數字，用來表示棒球隊的得分")
+]
+
 def get_prompt():
     return ChatPromptTemplate.from_messages([
     ("system","使用台灣語言並回答問題, 答案必須嚴格遵守格式,{format_instructions}"),
@@ -73,6 +80,17 @@ def get_date_result_schemas():
 
 def get_add_result_schemas():
     output_parser = StructuredOutputParser(response_schemas=add_schemas)
+    format_instructions = output_parser.get_format_instructions()
+    return [
+        ResponseSchema(
+            name="Result",
+            description="只有一筆資料的結果",
+            type=format_instructions
+        )
+    ]
+
+def get_score_result_schemas():
+    output_parser = StructuredOutputParser(response_schemas=score_schemas)
     format_instructions = output_parser.get_format_instructions()
     return [
         ResponseSchema(
@@ -108,6 +126,40 @@ tool = StructuredTool.from_function(
     func=get_holidays_from_clendarific,
     args_schema=GetValue
 )
+
+## For generate_hw04
+def local_image_to_data_url(image_path):
+    # Guess the MIME type of the image based on the file extension
+    mime_type, _ = guess_type(image_path)
+    if mime_type is None:
+        mime_type = 'application/octet-stream'  # Default MIME type if none is found
+
+    # Read and encode the image file
+    with open(image_path, "rb") as image_file:
+        base64_encoded_data = base64.b64encode(image_file.read()).decode('utf-8')
+
+    # Construct the data URL
+    return f"data:{mime_type};base64,{base64_encoded_data}"
+
+image_path = 'baseball.png'
+data_url = local_image_to_data_url(image_path)
+
+def get_image_prompt():
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", "辨識圖片中的文字表格後，使用台灣語言並回答問題, 答案必須嚴格遵守格式,{format_instructions}"),
+            (
+                "user",
+                [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": data_url},
+                    }
+                ],
+            ),
+            ("human", "{question}")
+        ]
+    )
 
 def generate_hw01(question):
     date_response_schemas = get_date_result_schemas()
@@ -149,7 +201,12 @@ def generate_hw03(question2, question3):
     return json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
     
 def generate_hw04(question):
-    pass
+    date_response_schemas = get_score_result_schemas()
+    prompt = get_image_prompt()
+    format_instructions = get_format_instructions(date_response_schemas)
+    date_chain = prompt | llm | SimpleJsonOutputParser()
+    response = date_chain.invoke({'question': question, "format_instructions": format_instructions})
+    return json.dumps(response, ensure_ascii=False)
     
 def demo(question):
     llm = AzureChatOpenAI(
