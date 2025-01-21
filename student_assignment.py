@@ -13,15 +13,10 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 from langchain.agents import AgentExecutor, create_openai_functions_agent
-from langchain_core.output_parsers import SimpleJsonOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from mimetypes import guess_type
-from langchain_core.utils.json import (
-    parse_and_check_json_markdown,
-    parse_json_markdown,
-    parse_partial_json,
-)
+from langchain_core.utils.json import parse_json_markdown
 from langchain import hub
 
 gpt_chat_version = 'gpt-4o'
@@ -60,7 +55,8 @@ add_schemas = [
 score_schemas = [
         ResponseSchema(
         name="score",
-        description="Integer，用來表示棒球隊的得分")
+        description="Integer，用來表示棒球隊的得分",
+        type="integer"),
 ]
 
 def get_prompt():
@@ -103,10 +99,6 @@ def get_score_result_schemas():
             type=format_instructions
         )
     ]
-
-def get_format_instructions(result_schemas: list[ResponseSchema]):
-    output_parser = StructuredOutputParser(response_schemas=result_schemas)
-    return output_parser.get_format_instructions()
 
 def get_output_parser(result_schemas: list[ResponseSchema]):
     return StructuredOutputParser(response_schemas=result_schemas)
@@ -170,21 +162,23 @@ def get_image_prompt():
 
 def generate_hw01(question):
     date_response_schemas = get_date_result_schemas()
+    output_parser = get_output_parser(date_response_schemas)
     prompt = get_prompt()
-    format_instructions = get_format_instructions(date_response_schemas)
-    date_chain = prompt | llm | SimpleJsonOutputParser()
+    format_instructions = output_parser.get_format_instructions()
+    date_chain = prompt | llm | output_parser
     response = date_chain.invoke({'question': question, "format_instructions": format_instructions})
     return json.dumps(response, ensure_ascii=False)
     
 def generate_hw02(question):
     date_response_schemas = get_date_result_schemas()
-    format_instructions = get_format_instructions(date_response_schemas)
+    output_parser = get_output_parser(date_response_schemas)
+    format_instructions = output_parser.get_format_instructions()
     prompt = get_prompt()
     tools = [tool]
     agent = create_openai_functions_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools)
     response = agent_executor.invoke({"question": question, "format_instructions": format_instructions}).get('output')
-    return json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
+    return parse_json_markdown(response)
 
 def generate_hw03(question2, question3):
     prompt = get_prompt()
@@ -199,22 +193,22 @@ def generate_hw03(question2, question3):
         history_messages_key="chat_history",
     )
     ## first question
-    format_instructions = get_format_instructions(get_date_result_schemas())
+    format_instructions = get_output_parser(get_date_result_schemas()).get_format_instructions()
     agent_with_chat_history.invoke({"question": question2, "format_instructions": format_instructions}).get('output')
 
     ## second question
-    format_instructions = get_format_instructions(get_add_result_schemas())
+    format_instructions = get_output_parser(get_add_result_schemas()).get_format_instructions()
     response = agent_with_chat_history.invoke({"question": question3, "format_instructions": format_instructions}).get('output')
-    return json.dumps(SimpleJsonOutputParser().parse(response), ensure_ascii=False)
+    return parse_json_markdown(response)
     
 def generate_hw04(question):
-    date_response_schemas = get_score_result_schemas()
+    score_response_schemas = get_score_result_schemas()
+    output_parser = get_output_parser(score_response_schemas)
     prompt = get_image_prompt()
-    format_instructions = get_format_instructions(date_response_schemas)
-    # date_chain = prompt | llm | get_output_parser(date_response_schemas)
-    # response = date_chain.invoke({'question': question, "format_instructions": format_instructions})
-    response = llm.invoke(prompt.format(question=question, format_instructions=format_instructions)).content
-    return parse_json_markdown(response)
+    format_instructions = output_parser.get_format_instructions()
+    date_chain = prompt | llm | output_parser
+    response = date_chain.invoke({'question': question, "format_instructions": format_instructions})
+    return json.dumps(response, ensure_ascii=False)
     
 def demo(question):
     llm = AzureChatOpenAI(
