@@ -17,7 +17,11 @@ from langchain_core.output_parsers import SimpleJsonOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from mimetypes import guess_type
-
+from langchain_core.utils.json import (
+    parse_and_check_json_markdown,
+    parse_json_markdown,
+    parse_partial_json,
+)
 from langchain import hub
 
 gpt_chat_version = 'gpt-4o'
@@ -56,7 +60,7 @@ add_schemas = [
 score_schemas = [
         ResponseSchema(
         name="score",
-        description="這是一個數字，用來表示棒球隊的得分")
+        description="Integer，用來表示棒球隊的得分")
 ]
 
 def get_prompt():
@@ -103,6 +107,9 @@ def get_score_result_schemas():
 def get_format_instructions(result_schemas: list[ResponseSchema]):
     output_parser = StructuredOutputParser(response_schemas=result_schemas)
     return output_parser.get_format_instructions()
+
+def get_output_parser(result_schemas: list[ResponseSchema]):
+    return StructuredOutputParser(response_schemas=result_schemas)
 
 ## For generate_hw02
 def get_holidays_from_clendarific(year: int, month: int):
@@ -204,9 +211,10 @@ def generate_hw04(question):
     date_response_schemas = get_score_result_schemas()
     prompt = get_image_prompt()
     format_instructions = get_format_instructions(date_response_schemas)
-    date_chain = prompt | llm | SimpleJsonOutputParser()
-    response = date_chain.invoke({'question': question, "format_instructions": format_instructions})
-    return json.dumps(response, ensure_ascii=False)
+    # date_chain = prompt | llm | get_output_parser(date_response_schemas)
+    # response = date_chain.invoke({'question': question, "format_instructions": format_instructions})
+    response = llm.invoke(prompt.format(question=question, format_instructions=format_instructions)).content
+    return parse_json_markdown(response)
     
 def demo(question):
     llm = AzureChatOpenAI(
